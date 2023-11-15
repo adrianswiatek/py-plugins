@@ -1,64 +1,63 @@
-import os
 import plistlib
 
+from pathlib import Path
 from plugin import PlugIn
 from plugin_format import PluginFormat
 
 
-def read_plist_file(suffix):
-    def wrapper(path):
-        full_path = path + suffix
-        if os.path.isfile(full_path):
-            with open(full_path, 'rb') as file:
-                return plistlib.load(file)
-        else:
-            return None
+def read_plist_file(path):
+    info_plist_path = "/Contents/Info.plist"
+    full_path = Path(str(path) + info_plist_path)
+
+    if not full_path.is_file():
+        return None
+
+    with open(full_path, 'rb') as file:
+        return plistlib.load(file)
+
+
+def plugins_in_format(root_path):
+    def wrapper(plugin_format):
+        path_to_plugins = root_path / plugin_format.value
+        return path_to_plugins.glob(f"**/*{plugin_format.file_suffix}") if path_to_plugins.exists() else []
 
     return wrapper
 
 
-def plugin_file_paths(path_to_plugins, plugin_formats):
-    def to_full_path(path):
-        return lambda file_name: path + file_name
+def flatten_paths(paths):
+    paths = list(paths)
 
-    def from_paths_and_format(paths, plugin_format):
-        paths = list(paths)
+    if not len(paths):
+        return []
 
-        if len(paths) == 0:
-            return []
+    head = paths[0]
+    tail = paths[1:]
 
-        head = paths[0]
-        tail = paths[1:]
+    return list(head) + flatten_paths(tail)
 
-        if plugin_format.file_suffix in head:
-            return [head] + from_paths_and_format(tail, plugin_format)
-        elif os.path.isdir(head):
-            deeper_file_paths = map(to_full_path(f"{head}/"), os.listdir(f"{head}/"))
-            return from_paths_and_format(deeper_file_paths, plugin_format) + from_paths_and_format(tail, plugin_format)
-        else:
-            return from_paths_and_format(tail, plugin_format)
 
-    def from_path_and_formats(plugins_path, formats):
-        formats = list(formats)
+def print_plugins(plugins):
+    plugins = list(plugins)
 
-        if len(formats) == 0:
-            return []
+    if not len(plugins):
+        return
 
-        head = formats[0]
-        tail = formats[1:]
+    head = plugins[0]
+    tail = plugins[1:]
 
-        path_to_plugin_format = head.to_dir_path(plugins_path)
-        file_paths = map(to_full_path(path_to_plugin_format), os.listdir(path_to_plugin_format))
+    if head is not None:
+        print(head)
 
-        return from_paths_and_format(file_paths, head) + from_path_and_formats(plugins_path, tail)
-
-    return from_path_and_formats(path_to_plugins, plugin_formats)
+    print_plugins(tail)
 
 
 if __name__ == "__main__":
     path_to_all_plugins = "/Library/Audio/Plug-Ins/"
-    info_plist_suffix = "/Contents/Info.plist"
 
-    for file_path in plugin_file_paths(path_to_all_plugins, PluginFormat.all()):
-        plugin = PlugIn.from_path(file_path, read_plist_file(info_plist_suffix))
-        print(plugin)
+    root_plugin_directory_path = Path(path_to_all_plugins)
+    list_of_plugin_paths = map(plugins_in_format(root_plugin_directory_path), PluginFormat.all())
+    plugin_paths = flatten_paths(list_of_plugin_paths)
+    all_plugins = filter(lambda x: x is not None, map(PlugIn.from_path(read_plist_file), plugin_paths))
+    all_sorted_plugins = sorted(all_plugins, key=lambda x: x.name)
+
+    print_plugins(all_sorted_plugins)

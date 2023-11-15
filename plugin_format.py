@@ -28,13 +28,15 @@ class PluginFormat(Enum):
         def to_search_term(plugin_format):
             return '/' + plugin_format.value.lower() + '/'
 
-        if to_search_term(PluginFormat.audio_unit) in path.lower():
+        str_path = str(path)
+
+        if to_search_term(PluginFormat.audio_unit) in str_path.lower():
             return PluginFormat.audio_unit
 
-        if to_search_term(PluginFormat.vst) in path.lower():
+        if to_search_term(PluginFormat.vst) in str_path.lower():
             return PluginFormat.vst
 
-        if to_search_term(PluginFormat.vst3) in path.lower():
+        if to_search_term(PluginFormat.vst3) in str_path.lower():
             return PluginFormat.vst3
 
         return None
